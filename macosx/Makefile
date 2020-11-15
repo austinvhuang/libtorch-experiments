@@ -1,8 +1,3 @@
-# Requirements
-# cmake - install with homebrew
-# new clang - install with homebrew. As of Catalina the system clang++ doesn't support sufficiently recent C++ standards
-
-
 default: cmake-build
 
 clean:

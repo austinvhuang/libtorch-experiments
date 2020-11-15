@@ -1,0 +1,23 @@
+diff --git a/c10/macros/Macros.h b/c10/macros/Macros.h
+index 4bd46fe97d..6628707b1f 100644
+--- a/c10/macros/Macros.h
++++ b/c10/macros/Macros.h
+@@ -277,12 +277,12 @@ extern "C" {
+     defined(__HIP_ARCH__) || defined(__HIP__)
+ __host__ __device__
+ #endif // __CUDA_ARCH__
+-    void
+-    __assert_fail(
+-        const char* assertion,
+-        const char* file,
+-        unsigned int line,
+-        const char* function) throw();
++//    void
++//    __assert_fail(
++//        const char* assertion,
++//        const char* file,
++//        unsigned int line,
++//        const char* function) throw();
+ }
+ #endif // NDEBUG
+ #define CUDA_KERNEL_ASSERT(cond)                                         \
