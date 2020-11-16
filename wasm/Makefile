@@ -1,5 +1,9 @@
 default: run
 
+clean:
+	rm -f example-app.js
+	rm -f example-app.wasm
+
 # run this once before build steps
 patch-pytorch:
 	cd pytorch; patch -p1 < ../pytorch.patch
@@ -35,10 +39,19 @@ example: cmake-build
 		-s DISABLE_EXCEPTION_CATCHING=0 -Wno-parentheses \
 		pytorch/third_party/cpuinfo/src/emscripten/init.c \
 		-Ipytorch/third_party/cpuinfo/src \
-		-s ERROR_ON_UNDEFINED_SYMBOLS=0 -s ALLOW_MEMORY_GROWTH=1
+		-s ERROR_ON_UNDEFINED_SYMBOLS=0 \
+		-s ALLOW_MEMORY_GROWTH=1 \
+		-o example-app.js
+
 
 run: example
-	node a.out.js
+	node example-app.js
+	wasmtime example-app.wasm
 
+# run this before wasi
 wasmtime: 
 	curl https://wasmtime.dev/install.sh -sSf | bash
+
+hellowasi:
+	emcc hello.cpp -o hello.wasm
+	wasmtime hello.wasm

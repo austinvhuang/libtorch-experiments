@@ -12,3 +12,7 @@ See https://github.com/pytorch/pytorch/issues/16112 - install:
 #include <glog/stl_logging.h>
          ^~~~~~~~~~~~~~~~~~~~
 ```
+
+## Troubleshooting
+
+Make sure enscripten context is active `source ~/emsdk/emsdk_env.sh`
