@@ -1,3 +1,6 @@
 [submodule "wasm/pytorch"]
 	path = wasm/pytorch
 	url = https://github.com/pytorch/pytorch
+[submodule "wasi/pytorch"]
+	path = wasi/pytorch
+	url = https://github.com/pytorch/pytorch.git
