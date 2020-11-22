@@ -27,3 +27,7 @@ wasm:
 # start express server
 server: js
 	yarn start
+
+# note EXPORTED_FUNCTIONS array is passed as a json string
+exports:
+	emcc demo.c -s WASM=1 -s EXPORTED_FUNCTIONS="['_getNum', '_getDoubleNum', '_greet', '_main']" -o public/demo.js

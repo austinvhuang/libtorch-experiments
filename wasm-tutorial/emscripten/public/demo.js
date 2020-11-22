@@ -17,8 +17,7 @@ var Module = typeof Module !== 'undefined' ? Module : {};
 
 // --pre-jses are emitted after the Module integration code, so that they can
 // refer to Module (if they choose; they can also define Module)
-console.log("run some tasks here")
-
+// {{PRE_JSES}}
 
 // Sometimes an existing Module object exists with properties
 // meant to overwrite the default module functionality. Here
@@ -1125,9 +1124,9 @@ function updateGlobalBufferAndViews(buf) {
   Module['HEAPF64'] = HEAPF64 = new Float64Array(buf);
 }
 
-var STACK_BASE = 5246000,
+var STACK_BASE = 5246080,
     STACKTOP = STACK_BASE,
-    STACK_MAX = 3120;
+    STACK_MAX = 3200;
 
 assert(STACK_BASE % 16 === 0, 'stack must start aligned');
 
@@ -1810,6 +1809,15 @@ var asmLibraryArg = {
 var asm = createWasm();
 /** @type {function(...*):?} */
 var ___wasm_call_ctors = Module["___wasm_call_ctors"] = createExportWrapper("__wasm_call_ctors");
+
+/** @type {function(...*):?} */
+var _getNum = Module["_getNum"] = createExportWrapper("getNum");
+
+/** @type {function(...*):?} */
+var _getDoubleNum = Module["_getDoubleNum"] = createExportWrapper("getDoubleNum");
+
+/** @type {function(...*):?} */
+var _greet = Module["_greet"] = createExportWrapper("greet");
 
 /** @type {function(...*):?} */
 var _main = Module["_main"] = createExportWrapper("main");
