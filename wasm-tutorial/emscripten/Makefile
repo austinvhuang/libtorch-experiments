@@ -45,3 +45,6 @@ strings:
 # in the console, should read 64MB instead of default 16MB
 memory_buffer:
 	emcc strings.c -s WASM=1 -s EXPORTED_FUNCTIONS="['_getStr']" -s TOTAL_MEMORY=64MB -o public/strings.js
+
+debug:
+	emcc strings.c -s WASM=1 -s EXPORTED_FUNCTIONS="['_getStr', '_getNumber']" -o public/strings.js
