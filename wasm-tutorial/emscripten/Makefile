@@ -48,3 +48,8 @@ memory_buffer:
 
 debug:
 	emcc strings.c -s WASM=1 -s EXPORTED_FUNCTIONS="['_getStr', '_getNumber']" -o public/strings.js
+
+# doesn't work
+emrun:
+	emcc strings.c -s WASM=1 --emrun -o public/emrun.html
+	emrun --port 8888 --hostname localhost --no_browser public/emrun.html

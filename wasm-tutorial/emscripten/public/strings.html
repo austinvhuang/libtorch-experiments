@@ -13,6 +13,13 @@
     </h1>
     <script src="strings.js"></script>
 
+    <script>
+        Module['onRuntimeInitialized'] = () => {
+            console.log('Runtime Ready');
+            console.log(_getStr());
+        }
+    </script>
+
 </body>
 
 </html>

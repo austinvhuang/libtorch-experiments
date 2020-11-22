@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo</title>
+</head>
+
+<body>
+    <h1>
+        Demo
+    </h1>
+    <script src="prime.js"></script>
+    <script>
+        const isPrime = num => {
+            for (let i = 2; i < num; i++)
+                if (num % i === 0) return false;
+            return num !== 1 && num !== 0;
+        }
+
+        // check numbers 0 - {primes}
+        const checkPrimes = num => {
+            let count = 0;
+            for (let i = 0; i < num; i++) {
+                if (isPrime(i)) count++
+            }
+            return count;
+        }
+
+        const primes = 200000;
+
+        // check JS & C once the WASM is ready
+        Module['onRuntimeInitialized'] = () => {
+            let jsStart = performance.now();
+            let jsPrimes = checkPrimes(primes);
+            console.log('JS', jsPrimes, Math.round(performance.now() - jsStart) / 1000);
+
+            // Check C
+            let cStart = performance.now();
+            let cPrimes = _checkPrimes(primes);
+            console.log('C', cPrimes, Math.round(performance.now() - cStart) / 1000);
+
+        }
+
+
+    </script>
+
+</body>
+
+</html>
