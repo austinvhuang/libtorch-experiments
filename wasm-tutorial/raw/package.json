@@ -1,0 +1,14 @@
+{
+  "name": "tutorial-raw",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Austin Huang",
+  "license": "BSD3",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1"
+  },
+  "type": "module"
+}
