@@ -31,8 +31,9 @@ scratch-build: lib
 rebuild1:
 	mkdir -p build
 	cd build; cmake -DCMAKE_PREFIX_PATH=$(PWD)/libtorch \
+		-DCMAKE_CXX_FLAGS="-g" \
 		-DCMAKE_CXX_COMPILER=/usr/local/Cellar/llvm/11.0.0/bin/clang++ ..
-	cd build; cmake --build . --config Release
+	cd build; cmake --build . --config Debug 
 	cd build; ./nca
 
 rebuild2:
@@ -46,4 +47,4 @@ rebuild2:
 	export DYLD_LIBRARY_PATH=$(PWD)/libtorch/lib; ./nca
 
 watcher:
-		rg nca.cpp --files | entr -s "make rebuild1"
+		rg nca.cpp Makefile --files | entr -s "make rebuild1"
