@@ -25,15 +25,16 @@ scratch-build: lib
 		-I $(PWD)/libtorch/include \
 		-L $(PWD)/libtorch/lib \
 		-ltorch_cpu -lc10 \
+		-std=c++17
 		-o nca
 	export DYLD_LIBRARY_PATH=$(PWD)/libtorch/lib; ./nca
 
 rebuild1:
 	mkdir -p build
 	cd build; cmake -DCMAKE_PREFIX_PATH=$(PWD)/libtorch \
-		-DCMAKE_CXX_FLAGS="-g" \
+		-DCMAKE_CXX_FLAGS="-g -std=c++17" \
 		-DCMAKE_CXX_COMPILER=/usr/local/Cellar/llvm/11.0.0/bin/clang++ ..
-	cd build; cmake --build . --config Debug 
+	cd build; cmake --build . --config Debug
 	cd build; ./nca
 
 rebuild2:
