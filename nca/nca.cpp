@@ -107,10 +107,12 @@ Tensor alive_masking(const Tensor state_grid) {
 
 struct NCA : torch::nn::Module {
   NCA() {}
-  Tensor forward(Tensor input) {
-    auto perception_vector = perceive(input);
+  Tensor forward(Tensor state_grid) {
+    auto perception_vector = perceive(state_grid);
     auto ds = update(perception_vector, fc1, fc2);
-    return torch::zeros({16, 16});
+    auto updated = stochastic_update(state_grid, ds);
+    auto masked = alive_masking(updated);
+    return masked;
   }
   Tensor fc1 = torch::zeros({16, 16});
   Tensor fc2 = torch::zeros({16, 16});
@@ -129,13 +131,11 @@ int main(int argc, char *argv[]) {
 
   std::cout << world << std::endl;
 
+  auto nca = NCA();
+
   auto out = perceive(world);
 
-  auto outx = torch::conv2d(world, sobel_x, {}, 1, 0, 1, 1);
-  auto outy = torch::conv2d(world, sobel_x, {}, 1, 0, 1, 1);
-  std::cout << outx << std::endl;
-  std::cout << outy << std::endl;
   std::cout << out << std::endl;
 
-  std::cout << "Foo" << std::endl;
+  std::cout << "Done" << std::endl;
 }
