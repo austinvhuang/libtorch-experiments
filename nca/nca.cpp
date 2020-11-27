@@ -23,10 +23,7 @@ Tensor alpha2state(const Tensor alpha) {
 Tensor repeat_n(const Tensor t, const int n, const int dim) {
   // repeat a tensor n times along dimension dim
   // used to replicate sobel filter across all channels
-  std::vector<Tensor> tvec;
-  for (auto i = 0; i < n; i++) {
-    tvec.push_back(t);
-  }
+  std::vector<Tensor> tvec(n, t);
   return torch::cat(tvec, dim);
 }
 
@@ -37,15 +34,15 @@ Tensor init_world(const WorldDim dim) {
 std::pair<Tensor, Tensor> create_sobel(int n_channels) {
   const int duplicate_dim = 1;
   float sx[1][1][3][3] = {{{{-1., 0., 1.}, {-2., 0., 2.}, {-1., 0., 1.}}}};
-  auto sobel_x1 = torch::from_blob(sx, {1, 1, 3, 3});
-  auto sobel_y1 = torch::transpose(sobel_x1, 0, -1);
+  const auto sobel_x1 = torch::from_blob(sx, {1, 1, 3, 3});
+  const auto sobel_y1 = torch::transpose(sobel_x1, 0, -1);
   return {repeat_n(sobel_x1, n_channels, duplicate_dim),
           repeat_n(sobel_y1, n_channels, duplicate_dim)};
 }
 
 /* Model */
 
-Tensor perceive(Tensor state_grid) {
+Tensor perceive(const Tensor state_grid) {
   // This step defines what each cell perceives of the environment surrounding
   // it.
   //
@@ -56,8 +53,8 @@ Tensor perceive(Tensor state_grid) {
   // We concatenate those gradients with the cells own states, forming a
   // percepted vector, for each cell.
   auto [sobel_x, sobel_y] = create_sobel(4);
-  auto grad_x = torch::conv2d(state_grid, sobel_x);
-  auto grad_y = torch::conv2d(state_grid, sobel_y);
+  const auto grad_x = torch::conv2d(state_grid, sobel_x);
+  const auto grad_y = torch::conv2d(state_grid, sobel_y);
   std::vector<Tensor> perception_vec = {state_grid, grad_x, grad_y};
   // auto perception_grid = torch::cat(perception_vec, 2);
   // TODO fix padding dimensions
@@ -120,12 +117,6 @@ struct NCA : torch::nn::Module {
 
 int main(int argc, char *argv[]) {
   auto world = init_world(WorldDim{4, 8, 8});
-
-  auto [sobel_x, sobel_y] = create_sobel(4);
-
-  std::cout << "sobel_x: " << std::endl << sobel_x << std::endl;
-  std::cout << "sobel_y: " << std::endl << sobel_y << std::endl;
-
   world.index_put_({0, 0, Slice(), 5}, 1.0);
   world.index_put_({0, 0, 5, Slice()}, 1.0);
 
