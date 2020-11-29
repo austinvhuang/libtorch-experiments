@@ -9,8 +9,8 @@ patch-pytorch:
 	cd pytorch; patch -p1 < ../pytorch.patch
 
 cmake-build-small:
-	mkdir -p pytorch/build
-	cd pytorch/build; \
+	mkdir -p pytorch/build-small
+	cd pytorch/build-small; \
 		emcmake cmake \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DUSE_STATIC_DISPATCH=ON \
@@ -23,11 +23,11 @@ cmake-build-small:
 		-DPSIMD_SOURCE_DIR=`pwd`/../third_party/psimd \
 		-DCMAKE_CXX_FLAGS=-I/Users/austinhuang/miniconda3/include/glog/ -s STANDALONE_WASM -s DISABLE_EXCEPTION_CATCHING=0 ERROR_ON_UNDEFINED_SYMBOLS=0 -s ALLOW_MEMORY_GROWTH=1 \
 		..
-	cd pytorch/build; emcmake make install DESTDIR=.
+	cd pytorch/build-small; emcmake make install DESTDIR=.
 
 cmake-build-large:
-	mkdir -p pytorch/build
-	cd pytorch/build; \
+	mkdir -p pytorch/build-large
+	cd pytorch/build-large; \
 		emcmake cmake \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DUSE_STATIC_DISPATCH=ON \
@@ -40,19 +40,19 @@ cmake-build-large:
 		-DPSIMD_SOURCE_DIR=`pwd`/../third_party/psimd \
 		-DCMAKE_CXX_FLAGS=-I/Users/austinhuang/miniconda3/include/glog/ -s STANDALONE_WASM -s DISABLE_EXCEPTION_CATCHING=0 ERROR_ON_UNDEFINED_SYMBOLS=0 -s ALLOW_MEMORY_GROWTH=1 \
 		..
-	cd pytorch/build; emcmake make install DESTDIR=.
+	cd pytorch/build-large; emcmake make install DESTDIR=.
 
 example:
 	emcc example-app.cpp \
- 		-Lpytorch/build/usr/local/lib \
+ 		-Lpytorch/build-small/usr/local/lib \
  		-lclog -lcpuinfo \
 		-Wl,--whole-archive \
  		-ltorch_cpu -ltorch -lc10 \
 		-Wl,--no-whole-archive \
- 		-Ipytorch/build/usr/local/include \
- 		-Ipytorch/build/usr/local/include/torch/csrc/ \
- 		-Ipytorch/build/usr/local/include/torch/csrc/api/include/ \
- 		-Ibuild/usr/local/include/torch/csrc/api/include \
+ 		-Ipytorch/build-small/usr/local/include \
+ 		-Ipytorch/build-small/usr/local/include/torch/csrc/ \
+ 		-Ipytorch/build-small/usr/local/include/torch/csrc/api/include/ \
+ 		-Ibuild-small/usr/local/include/torch/csrc/api/include \
 		-s DISABLE_EXCEPTION_CATCHING=0 -Wno-parentheses \
  		pytorch/third_party/cpuinfo/src/emscripten/init.c \
  		-Ipytorch/third_party/cpuinfo/src \
