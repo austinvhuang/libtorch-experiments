@@ -37,8 +37,6 @@ std::pair<Tensor, Tensor> create_sobel(int n_channels) {
   const auto sobel_x1 = torch::from_blob(sx, {1, 1, 3, 3});
   const auto sobel_y1 = torch::transpose(sobel_x1, 3, -1);
   return {sobel_x1, sobel_y1};
-  //  return {repeat_n(sobel_x1, n_channels, duplicate_dim),
-  //          repeat_n(sobel_y1, n_channels, duplicate_dim)};
 }
 
 /* Model */
@@ -154,20 +152,29 @@ struct NCA : torch::nn::Module {
   Tensor fc2;
 };
 
+void train(NCA nca, Tensor world) {
+  // TODO
+  const int t_max = 3;
+  for (int t = 0; t < t_max; ++t) {
+    world = nca.forward(world);
+    std::cout << world << std::endl;
+  }
+}
+
 int main(int argc, char *argv[]) {
   auto world = init_world(WorldDim{4, 8, 8});
-  world.index_put_({0, 0, Slice(), 5}, 1.0);
+  world.index_put_({0, 0, Slice(), 5}, 1.0); // red
   world.index_put_({0, 0, 5, Slice()}, 1.0);
+  world.index_put_({0, 3, Slice(), 5}, 1.0); // alpha
+  world.index_put_({0, 3, 5, Slice()}, 1.0);
   std::cout << "World" << std::endl << world << std::endl;
 
   const int fc1_input_dim = (4 + 2 * 4);
   auto nca = NCA();
   nca.fc1 = torch::zeros({128, fc1_input_dim});
   nca.fc2 = torch::zeros({4, 128});
-  auto fwd = nca.forward(world);
 
-  // auto out = perceive(world);
-  // std::cout << out << std::endl;
+  train(nca, world);
 
   std::cout << "Done" << std::endl;
 }

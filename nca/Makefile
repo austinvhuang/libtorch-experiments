@@ -47,5 +47,24 @@ rebuild2:
 		-o nca
 	export DYLD_LIBRARY_PATH=$(PWD)/libtorch/lib; ./nca
 
+em-nca: 
+	emcc nca.cpp \
+		-fcolor-diagnostics \
+ 		-Lpytorch/build/usr/local/lib \
+ 		-lclog -lcpuinfo \
+		-Wl,--whole-archive \
+ 		-ltorch_cpu -ltorch -lc10 \
+		-Wl,--no-whole-archive \
+ 		-Ipytorch/build/usr/local/include \
+ 		-Ipytorch/build/usr/local/include/torch/csrc/ \
+ 		-Ipytorch/build/usr/local/include/torch/csrc/api/include/ \
+ 		-Ibuild/usr/local/include/torch/csrc/api/include \
+		-s DISABLE_EXCEPTION_CATCHING=0 -Wno-parentheses \
+ 		pytorch/third_party/cpuinfo/src/emscripten/init.c \
+ 		-Ipytorch/third_party/cpuinfo/src \
+		-s ERROR_ON_UNDEFINED_SYMBOLS=0 \
+		-o nca.html
+
+
 watcher:
 		rg nca.cpp Makefile --files | entr -s "make rebuild1"

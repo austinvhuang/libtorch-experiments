@@ -8,7 +8,7 @@ clean:
 patch-pytorch:
 	cd pytorch; patch -p1 < ../pytorch.patch
 
-cmake-build:
+cmake-build-small:
 	mkdir -p pytorch/build
 	cd pytorch/build; \
 		emcmake cmake \
@@ -16,6 +16,23 @@ cmake-build:
 		-DUSE_STATIC_DISPATCH=ON \
 		-DUSE_NUMA=OFF \
 		-DINTERN_BUILD_MOBILE=ON \
+		-DBUILD_SHARED_LIBS=OFF \
+		-DCMAKE_PREFIX_PATH=`pwd`/.. \
+		-DPYTHON_EXECUTABLE=/Users/austinhuang/miniconda3/bin/python \
+		-DFXDIV_SOURCE_DIR=`pwd`/../third_party/FXdiv \
+		-DPSIMD_SOURCE_DIR=`pwd`/../third_party/psimd \
+		-DCMAKE_CXX_FLAGS=-I/Users/austinhuang/miniconda3/include/glog/ -s STANDALONE_WASM -s DISABLE_EXCEPTION_CATCHING=0 ERROR_ON_UNDEFINED_SYMBOLS=0 -s ALLOW_MEMORY_GROWTH=1 \
+		..
+	cd pytorch/build; emcmake make install DESTDIR=.
+
+cmake-build-large:
+	mkdir -p pytorch/build
+	cd pytorch/build; \
+		emcmake cmake \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DUSE_STATIC_DISPATCH=ON \
+		-DUSE_NUMA=OFF \
+		-DINTERN_BUILD_MOBILE=OFF \
 		-DBUILD_SHARED_LIBS=OFF \
 		-DCMAKE_PREFIX_PATH=`pwd`/.. \
 		-DPYTHON_EXECUTABLE=/Users/austinhuang/miniconda3/bin/python \
