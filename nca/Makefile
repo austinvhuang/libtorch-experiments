@@ -35,7 +35,7 @@ rebuild1:
 		-DCMAKE_CXX_FLAGS="-g -std=c++17" \
 		-DCMAKE_CXX_COMPILER=/usr/local/Cellar/llvm/11.0.0/bin/clang++ ..
 	cd build; cmake --build . --config Debug
-	cd build; ./nca
+	cd build; ./nca 2> /dev/null
 
 rebuild2:
 	time /usr/local/Cellar/llvm/11.0.0/bin/clang++ nca.cpp \
