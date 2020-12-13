@@ -39,14 +39,14 @@ rebuild1:
 	cd build; ./nca 2> /dev/null
 
 rebuild2:
-	time clang++ nca.cpp \
+	time clang++ -g -std=c++17 nca.cpp \
 		-fcolor-diagnostics \
 		-I $(PWD)/libtorch/include/torch/csrc/api/include/ \
 		-I $(PWD)/libtorch/include \
 		-L $(PWD)/libtorch/lib \
 		-ltorch_cuda -ltorch_cpu -lc10 \
 		-o nca
-	export LD_LIBRARY_PATH=$(PWD)/libtorch/lib; ./nca 2> /dev/null
+	export LD_LIBRARY_PATH=$(PWD)/libtorch/lib; time ./nca
 
 em-nca: 
 	emcc nca.cpp \
@@ -66,6 +66,15 @@ em-nca:
 		-s ERROR_ON_UNDEFINED_SYMBOLS=0 \
 		-o nca.html
 
-
 watcher:
 		rg nca.cpp Makefile.ubuntu --files | entr -s "make -f Makefile.ubuntu rebuild2"
+
+precompile_header:
+	time clang++ -c torch_pch.hpp \
+		-fcolor-diagnostics \
+		-I $(PWD)/libtorch/include/torch/csrc/api/include/ \
+		-I $(PWD)/libtorch/include
+
+debug:
+	source setenv; lldb ./nca
+	
