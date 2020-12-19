@@ -24,7 +24,7 @@ void log(std::string text, Tensor value) {
 
 void write_ppm(const Tensor img, std::ostream &o) {
 
-  assert(img.sizes()[0] == 4);
+  assert(img.sizes()[0] >= 4);
   const int img_width = img.sizes()[2];
   const int img_height = img.sizes()[1];
 
@@ -33,9 +33,9 @@ void write_ppm(const Tensor img, std::ostream &o) {
   for (int i = 0; i < img_height; ++i) {
     for (int j = 0; j < img_width; ++j) {
       auto alpha = 1.0; // img[3][i][j];
-      float r = (img[0][i][j] * alpha).item<float>();
-      float g = (img[1][i][j] * alpha).item<float>();
-      float b = (img[2][i][j] * alpha).item<float>();
+      float r = (torch::relu(img[0][i][j] * alpha)).item<float>();
+      float g = (torch::relu(img[1][i][j] * alpha)).item<float>();
+      float b = (torch::relu(img[2][i][j] * alpha)).item<float>();
       int ir = static_cast<int>(255.999 * r);
       int ig = static_cast<int>(255.999 * g);
       int ib = static_cast<int>(255.999 * b);
@@ -147,7 +147,13 @@ Tensor alive_masking(const Tensor &state_grid) {
 }
 
 struct NCA : torch::nn::Module {
-  NCA() {}
+  NCA() {
+
+    // fc1 = register_module("fc1", torch::nn::Linear(fc1_input_dim, hdim));
+    // fc2 = register_module("fc2", torch::nn::Linear(hdim, 4));
+
+  }
+
   Tensor forward(Tensor &state_grid) {
     // std::cout << "is cuda? " << state_grid.is_cuda() << std::endl;
     auto perception_grid = perceive(state_grid);
@@ -170,11 +176,12 @@ void train(NCA nca, const Tensor &target, const Tensor &init, const float &lr,
            const int tmax) {
   const int n_iter = 10000000;
 
-  /*
+  assert(target.sizes()[1] >= 4);
+  assert(init.sizes()[1] >= 4);
+
   torch::optim::SGD optimizer(
     nca.parameters(),
     torch::optim::SGDOptions(lr).momentum(0.5));
-    */
 
   for (int i = 0; i < n_iter; ++i) {
     Tensor state = init;
@@ -182,7 +189,7 @@ void train(NCA nca, const Tensor &target, const Tensor &init, const float &lr,
     for (int t = 0; t < tmax; ++t) {
       state = nca.forward(state);
     }
-    auto loss = mse_loss(target, state);
+    auto loss = mse_loss(target.slice(1, 0, 4), state.slice(1, 0, 4));
     auto g = torch::autograd::grad({loss}, {nca.fc1, nca.fc2});
     if (i % 100 == 0) {
       std::cout << "iter: " << i << " | loss: " << std::setprecision(4)
@@ -228,7 +235,7 @@ int main(int argc, char *argv[]) {
 
   std::cout << "getNumGPUs: " << torch::cuda::device_count() << std::endl;
 
-  const auto world_dim = WorldDim({4, 9, 9});
+  const auto world_dim = WorldDim({16, 9, 9});
 
   // make target pattern
   auto target = init_world(world_dim);
@@ -251,24 +258,21 @@ int main(int argc, char *argv[]) {
 
   // make initial condition
   auto init = init_world(world_dim);
-  init.index_put_({0, 0, 4, 4}, 1.0); // red channel
-  init.index_put_({0, 1, 4, 4}, 1.0); // red channel
-  init.index_put_({0, 2, 4, 4}, 1.0); // red channel
-  init.index_put_({0, 3, 4, 4}, 1.0); // alpha
+  init.index_put_({0, Slice(), 4, 4}, 1.0); // alpha
   log("init", init);
 
-  const int fc1_input_dim =
-      (4 + 2 * 4); // add 2 * 4 for horizontal and vertical sobel filters
-  auto nca = NCA();
-
   const int hdim = 128;
-  const float lr = 1e-4;
+  const float lr = 1e-2;
   const int tmax = 60;
+
+  const int fc1_input_dim =
+      (world_dim.channels + 2 * world_dim.channels); // add 2 * 4 for horizontal and vertical sobel filters
+  auto nca = NCA();
 
   nca.fc1 = torch::zeros({hdim, fc1_input_dim}, options.requires_grad(true)) +
             1000.0; // avoid exactly 0 due to relu
   nca.fc1 = torch::nn::init::kaiming_uniform_(nca.fc1);
-  nca.fc2 = torch::zeros({4, hdim}, options.requires_grad(true));
+  nca.fc2 = torch::zeros({world_dim.channels, hdim}, options.requires_grad(true));
 
   nca.fc1.to(torch::kCUDA);
   nca.fc2.to(torch::kCUDA);
@@ -276,6 +280,7 @@ int main(int argc, char *argv[]) {
   std::cout << "hdim: " << hdim << std::endl;
   std::cout << "lr: " << lr << std::endl;
   std::cout << "tmax: " << tmax << std::endl;
+  std::cout << "world channels: " << world_dim.channels << std::endl;
 
   train(nca, target, init, lr, tmax);
 
