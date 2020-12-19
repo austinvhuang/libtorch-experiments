@@ -39,14 +39,16 @@ rebuild1:
 	cd build; ./nca 2> /dev/null
 
 rebuild2:
-	time clang++ -g -std=c++17 nca.cpp \
+	time clang++ -O2 -std=c++20 nca.cpp \
 		-fcolor-diagnostics \
 		-I $(PWD)/libtorch/include/torch/csrc/api/include/ \
 		-I $(PWD)/libtorch/include \
 		-L $(PWD)/libtorch/lib \
 		-ltorch_cuda -ltorch_cpu -lc10 \
 		-o nca
-	export LD_LIBRARY_PATH=$(PWD)/libtorch/lib; time ./nca
+	export LD_LIBRARY_PATH=$(PWD)/libtorch/lib; rm state_*_???.ppm; time ./nca
+
+# time clang++ -g -std=c++17 nca.cpp \
 
 em-nca: 
 	emcc nca.cpp \
@@ -78,3 +80,5 @@ precompile_header:
 debug:
 	source setenv; lldb ./nca
 	
+view:
+	feh -Z --force-aliasing -g 1024x768 state*.ppm

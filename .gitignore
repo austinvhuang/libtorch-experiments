@@ -6,3 +6,4 @@ yarn.lock
 
 libtorch.zip
 *.gch
+*.ppm
