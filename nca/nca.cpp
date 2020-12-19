@@ -228,18 +228,18 @@ int main(int argc, char *argv[]) {
 
   std::cout << "getNumGPUs: " << torch::cuda::device_count() << std::endl;
 
-  const auto world_dim = WorldDim({4, 8, 8});
+  const auto world_dim = WorldDim({4, 9, 9});
 
   // make target pattern
   auto target = init_world(world_dim);
-  target.index_put_({0, 0, Slice(), 3}, 1.0); // 0 channel = red
-  target.index_put_({0, 0, 3, Slice()}, 1.0);
-  target.index_put_({0, 1, Slice(), 3}, 1.0); // 1 channel = green
-  target.index_put_({0, 1, 3, Slice()}, 1.0);
-  target.index_put_({0, 2, Slice(), 3}, 1.0); // 2 channel = blue
-  target.index_put_({0, 2, 3, Slice()}, 1.0);
-  target.index_put_({0, 3, Slice(), 3}, 1.0); // 3 channel = alpha
-  target.index_put_({0, 3, 3, Slice()}, 1.0);
+  target.index_put_({0, 0, Slice(), 4}, 1.0); // 0 channel = red
+  target.index_put_({0, 0, 4, Slice()}, 1.0);
+  target.index_put_({0, 1, Slice(), 4}, 1.0); // 1 channel = green
+  target.index_put_({0, 1, 4, Slice()}, 1.0);
+  target.index_put_({0, 2, Slice(), 4}, 1.0); // 2 channel = blue
+  target.index_put_({0, 2, 4, Slice()}, 1.0);
+  target.index_put_({0, 3, Slice(), 4}, 1.0); // 3 channel = alpha
+  target.index_put_({0, 3, 4, Slice()}, 1.0);
   log("target", target);
 
   auto target_img =
@@ -251,10 +251,10 @@ int main(int argc, char *argv[]) {
 
   // make initial condition
   auto init = init_world(world_dim);
-  init.index_put_({0, 0, 3, 3}, 1.0); // red channel
-  init.index_put_({0, 1, 3, 3}, 1.0); // red channel
-  init.index_put_({0, 2, 3, 3}, 1.0); // red channel
-  init.index_put_({0, 3, 3, 3}, 1.0); // alpha
+  init.index_put_({0, 0, 4, 4}, 1.0); // red channel
+  init.index_put_({0, 1, 4, 4}, 1.0); // red channel
+  init.index_put_({0, 2, 4, 4}, 1.0); // red channel
+  init.index_put_({0, 3, 4, 4}, 1.0); // alpha
   log("init", init);
 
   const int fc1_input_dim =
