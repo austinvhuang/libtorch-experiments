@@ -262,7 +262,7 @@ int main(int argc, char *argv[]) {
   log("init", init);
 
   const int hdim = 128;
-  const float lr = 1e-2;
+  const float lr = 1e-4;
   const int tmax = 60;
 
   const int fc1_input_dim =
