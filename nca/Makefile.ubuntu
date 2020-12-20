@@ -46,7 +46,7 @@ rebuild2:
 		-L $(PWD)/libtorch/lib \
 		-ltorch_cuda -ltorch_cpu -lc10 \
 		-o nca
-	export LD_LIBRARY_PATH=$(PWD)/libtorch/lib; rm -f state_????????_???.ppm; time ./nca
+	export LD_LIBRARY_PATH=$(PWD)/libtorch/lib; time ./nca
 
 # time clang++ -g -std=c++17 nca.cpp \
 
@@ -70,6 +70,9 @@ em-nca:
 
 watcher:
 		rg nca.cpp Makefile.ubuntu --files | entr -s "make -f Makefile.ubuntu rebuild2"
+
+cf:
+		rg nca.cpp --files | entr -s "clang-format -i nca.cpp"
 
 precompile_header:
 	time clang++ -c torch_pch.hpp \
