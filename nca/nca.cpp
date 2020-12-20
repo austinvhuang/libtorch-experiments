@@ -71,7 +71,7 @@ Tensor init_world(const int batchsize, const WorldDim dim) {
 /* Model */
 
 struct NCA : torch::nn::Module {
-  NCA(int fc1_input_dim, int hdim, int channels)
+  NCA(int fc1_input_dim, int hdim, int channels, int batchsize)
       : fc1(torch::nn::Conv2d(fc1_input_dim, hdim, /*kernel size*/ 1)),
         fc2(torch::nn::Conv2d(hdim, channels, /*kernel size */ 1)) {
     register_module("fc1", fc1);
@@ -92,6 +92,11 @@ struct NCA : torch::nn::Module {
         sobel_x0.to(options); // cannot initialize on the gpu using from_blob
     sobel_y = torch::transpose(sobel_x, 3, -1);
 
+    sobel_x = repeat_n(sobel_x, batchsize, 0);
+    sobel_y = repeat_n(sobel_y, batchsize, 0);
+    sobel_x = repeat_n(sobel_x, channels, 1);
+    sobel_y = repeat_n(sobel_y, channels, 1);
+
     logdat("fc1w ", fc1->weight.sizes());
     logdat("fc2w ", fc2->weight.sizes());
     logdat("fc1b ", fc1->bias.sizes());
@@ -99,25 +104,26 @@ struct NCA : torch::nn::Module {
   }
 
   Tensor perceive(const Tensor &state_grid) {
-    assert(state_grid.sizes()[0] == 1);
+    // assert(state_grid.sizes()[0] == 1);
 
-    // logdat("sobel_x", sobel_x.sizes());
-    // logdat("sobel_y", sobel_y.sizes());
-    // logdat("sg", state_grid.sizes());
+    logdat("sobel_x", sobel_x.sizes());
+    logdat("sobel_y", sobel_y.sizes());
+    logdat("sg", state_grid.sizes());
 
-    // std::cout << "perception sizes " << perception_grid.sizes();
-    auto state_grid_flat = torch::transpose(state_grid, 0, 1);
-    auto grad_x = torch::transpose(
-        torch::conv2d(state_grid_flat, sobel_x, {}, 1, 1), 0, 1);
+    // auto state_grid_flat = torch::transpose(state_grid, 0, 1);
+    logdat("perceive", 0);
+    auto grad_x = 
+        torch::conv2d(state_grid, sobel_x, {}, 1, 1);
     auto grad_y = torch::transpose(
-        torch::conv2d(state_grid_flat, sobel_y, {}, 1, 1), 0, 1);
+        torch::conv2d(state_grid, sobel_y, {}, 1, 1), 0, 1);
     std::vector<Tensor> perception_vec = {state_grid, grad_x, grad_y};
     auto perception_grid = torch::cat(perception_vec, 1);
-    // logdat("perception grid", perception_grid.sizes());
+    logdat("perception grid", perception_grid.sizes());
     return perception_grid;
   }
 
   Tensor update(const Tensor &perception_vector) {
+    logdat("update", 0);
     auto x = fc1->forward(perception_vector);
     x = torch::relu(x);
     auto ds = fc2->forward(x);
@@ -244,7 +250,7 @@ int main(int argc, char *argv[]) {
 
   std::cout << "getNumGPUs: " << torch::cuda::device_count() << std::endl;
 
-  const int batchsize = 1;
+  const int batchsize = 7;
   auto world_dim = WorldDim({16, 9, 9});
 
   // make target pattern
@@ -273,7 +279,7 @@ int main(int argc, char *argv[]) {
       (world_dim.channels +
        2 * world_dim.channels); // add 2 * 4 for horizontal and vertical sobel
                                 // filters
-  auto nca = NCA(fc1_input_dim, hdim, world_dim.channels);
+  auto nca = NCA(fc1_input_dim, hdim, world_dim.channels, batchsize);
   torch::Device device(torch::kCUDA);
   nca.to(device);
 
