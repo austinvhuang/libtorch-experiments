@@ -92,3 +92,8 @@ debug:
 	
 view:
 	feh -Z --force-aliasing -g 1024x768 state*.ppm
+
+
+# run from an images_* directory
+movie:
+	ffmpeg -framerate 60 -pattern_type glob -i "state_*.ppm" -crf 0 -vf scale=400:400 -sws_flags neighbor output.mp4

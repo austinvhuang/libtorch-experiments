@@ -14,7 +14,7 @@ const auto options = torch::TensorOptions().device(torch::kCUDA, 0);
 const auto options = torch::TensorOptions();
 #endif
 
-const bool SAVE_OUTPUT = false;
+const bool SAVE_OUTPUT = true;
 
 struct WorldDim {
   int channels;
@@ -41,10 +41,17 @@ void write_ppm(const Tensor img, const std::string &filename) {
 
       for (int i = 0; i < img_height; ++i) {
         for (int j = 0; j < img_width; ++j) {
-          auto alpha = 1.0; // img[3][i][j];
-          float r = (torch::relu(img[0][i][j] * alpha)).item<float>();
-          float g = (torch::relu(img[1][i][j] * alpha)).item<float>();
-          float b = (torch::relu(img[2][i][j] * alpha)).item<float>();
+          // auto alpha = 1.0; // img[3][i][j];
+          auto alpha = img[3][i][j];
+          float r = torch::min(torch::full(1, 1.0, options),
+                               (torch::relu(img[0][i][j] * alpha)))
+                        .item<float>();
+          float g = torch::min(torch::full(1, 1.0, options),
+                               (torch::relu(img[1][i][j] * alpha)))
+                        .item<float>();
+          float b = torch::min(torch::full(1, 1.0, options),
+                               (torch::relu(img[2][i][j] * alpha)))
+                        .item<float>();
           int ir = static_cast<int>(255.999 * r);
           int ig = static_cast<int>(255.999 * g);
           int ib = static_cast<int>(255.999 * b);
@@ -67,8 +74,6 @@ Tensor init_world(const int batchsize, const WorldDim dim) {
   return torch::zeros({batchsize, dim.channels, dim.height, dim.width},
                       options);
 }
-
-/* Model */
 
 struct NCA : torch::nn::Module {
   NCA(int fc1_input_dim, int hdim, int channels, int batchsize)
@@ -105,10 +110,9 @@ struct NCA : torch::nn::Module {
   }
 
   Tensor perceive(const Tensor &state_grid) {
-    auto grad_x = 
-        torch::conv2d(state_grid, sobel_x, {}, 1, 1);
-    auto grad_y = torch::transpose(
-        torch::conv2d(state_grid, sobel_y, {}, 1, 1), 2, 3);
+    auto grad_x = torch::conv2d(state_grid, sobel_x, {}, 1, 1);
+    auto grad_y =
+        torch::transpose(torch::conv2d(state_grid, sobel_y, {}, 1, 1), 2, 3);
     std::vector<Tensor> perception_vec = {state_grid, grad_x, grad_y};
     auto perception_grid = torch::cat(perception_vec, 1);
     return perception_grid;
@@ -136,7 +140,8 @@ struct NCA : torch::nn::Module {
         state_grid.index({Slice(), 3, Slice(), Slice()}); // 3 = alpha channel
     auto alive = torch::max_pool2d(alpha, {3, 3}, {1}, {1})
                      .gt(threshold); // stride=1, padding=1
-    alive = torch::reshape(alive, {state_grid.sizes()[0], 1, alpha.sizes()[1], alpha.sizes()[2]});
+    alive = torch::reshape(
+        alive, {state_grid.sizes()[0], 1, alpha.sizes()[1], alpha.sizes()[2]});
     alive = repeat_n(alive, state_grid.sizes()[1],
                      1); // repeat alive mask all channels
     return state_grid * torch::_cast_Float(alive);
@@ -176,17 +181,11 @@ std::string make_outdir() {
 
 void train(NCA &nca, const Tensor &target, const Tensor &init, const float &lr,
            const int tmax, const std::string outdir) {
-  const int n_iter = 10000000;
+  const int n_iter = 2000;
 
   assert(target.sizes()[1] >= 4);
   assert(init.sizes()[1] >= 4);
-  // torch::optim::Adam optimizer(nca.parameters(), torch::optim::AdamOptions(lr));
-  // torch::optim::SGD optimizer(nca.parameters(), torch::optim::SGDOptions(lr).momentum(0.5));
-  // logdat("lr check ", lr);
-  // logdat("object check ", nca.parameters());
-  torch::optim::SGD optimizer(nca.parameters(), torch::optim::SGDOptions(lr).momentum(0.0));
-  // logdat("optim ", optimizer);
-    
+  torch::optim::Adam optimizer(nca.parameters(), torch::optim::AdamOptions(lr));
 
   auto target_img = target.index({0, Slice(), Slice(), Slice()});
   write_ppm(target_img, outdir + "/target.ppm");
@@ -206,23 +205,19 @@ void train(NCA &nca, const Tensor &target, const Tensor &init, const float &lr,
     auto prior = nca.fc2->weight;
     loss.backward();
     optimizer.step();
-    // logdat("after ", torch::norm(nca.fc2->weight));
-//    std::cout << "fc2 gradient norm: "
-//                << torch::norm(nca.fc2->weight.grad()).to(torch::kFloat)
-//                << std::endl;
-//    logdat("diff", torch::norm(nca.fc2->weight - prior));
     // auto g = torch::autograd::grad({loss}, {nca.fc1, nca.fc2});
     if (i % 10 == 0) {
       std::cout << "iter: " << i << " | loss: " << std::setprecision(5)
                 << loss.item<float>() << "\n";
     }
-    if (i % 500 == 0) {
+    if (i % 50 == 0) {
       std::cout << "========================================================="
                    "======================="
                 << std::endl;
       std::cout << "iter: " << i << std::endl;
       std::cout << "loss: " << loss.to(torch::kFloat) << std::endl;
-      std::cout << "state (visible): " << state.slice(1, 0, 4).slice(0, 0, 1) << std::endl;
+      std::cout << "state (visible): " << state.slice(1, 0, 4).slice(0, 0, 1)
+                << std::endl;
       std::cout << "state dtype: " << state.is_cuda() << std::endl;
       std::cout << "fc1 gradient norm: "
                 << torch::norm(nca.fc1->weight.grad()).to(torch::kFloat)
@@ -230,7 +225,9 @@ void train(NCA &nca, const Tensor &target, const Tensor &init, const float &lr,
       std::cout << "fc2 gradient norm: "
                 << torch::norm(nca.fc2->weight.grad()).to(torch::kFloat)
                 << std::endl;
+    }
 
+    if ((i > 0 && i % 10 == 0 && i < 100) || (i >= 80 && i % 50 == 0)) {
       std::cout << "Writing images\n";
       Tensor img = init;
       img = img.to(options);
@@ -245,6 +242,7 @@ void train(NCA &nca, const Tensor &target, const Tensor &init, const float &lr,
       }
       std::cout << "Wrote images\n";
     }
+
   }
 }
 
@@ -252,11 +250,11 @@ int main(int argc, char *argv[]) {
 
   std::cout << "getNumGPUs: " << torch::cuda::device_count() << std::endl;
 
-  const int batchsize = 1;
+  const int batchsize = 256;
   auto world_dim = WorldDim({16, 9, 9});
   const int hdim = 128;
-  const float lr = 1.0e-4;
-  const int tmax = 70;
+  const float lr = 1.0e-5;
+  const int tmax = 120;
   auto outdir = make_outdir();
 
   // make target pattern
