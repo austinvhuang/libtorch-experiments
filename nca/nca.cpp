@@ -82,8 +82,8 @@ struct NCA : torch::nn::Module {
     fc1->bias = torch::zeros({hdim}, options.requires_grad(true));
     fc1->weight = torch::nn::init::kaiming_uniform_(fc1->weight);
     fc2->weight =
-        torch::full({channels, hdim, 1, 1}, 1e-3, options.requires_grad(true));
-    fc2->bias = torch::full({channels}, 1e-3, options.requires_grad(true));
+        torch::full({channels, hdim, 1, 1}, 1e-4, options.requires_grad(true));
+    fc2->bias = torch::full({channels}, 1e-4, options.requires_grad(true));
 
     float sx[1][1][3][3] = {{{{-1., 0., 1.}, {-2., 0., 2.}, {-1., 0., 1.}}}};
     const auto sobel_x0 = torch::from_blob(sx, {1, 1, 3, 3}) /
@@ -92,8 +92,8 @@ struct NCA : torch::nn::Module {
         sobel_x0.to(options); // cannot initialize on the gpu using from_blob
     sobel_y = torch::transpose(sobel_x, 3, -1);
 
-    sobel_x = repeat_n(sobel_x, batchsize, 0);
-    sobel_y = repeat_n(sobel_y, batchsize, 0);
+    sobel_x = repeat_n(sobel_x, channels, 0);
+    sobel_y = repeat_n(sobel_y, channels, 0);
     sobel_x = repeat_n(sobel_x, channels, 1);
     sobel_y = repeat_n(sobel_y, channels, 1);
 
@@ -104,26 +104,16 @@ struct NCA : torch::nn::Module {
   }
 
   Tensor perceive(const Tensor &state_grid) {
-    // assert(state_grid.sizes()[0] == 1);
-
-    logdat("sobel_x", sobel_x.sizes());
-    logdat("sobel_y", sobel_y.sizes());
-    logdat("sg", state_grid.sizes());
-
-    // auto state_grid_flat = torch::transpose(state_grid, 0, 1);
-    logdat("perceive", 0);
     auto grad_x = 
         torch::conv2d(state_grid, sobel_x, {}, 1, 1);
     auto grad_y = torch::transpose(
-        torch::conv2d(state_grid, sobel_y, {}, 1, 1), 0, 1);
+        torch::conv2d(state_grid, sobel_y, {}, 1, 1), 2, 3);
     std::vector<Tensor> perception_vec = {state_grid, grad_x, grad_y};
     auto perception_grid = torch::cat(perception_vec, 1);
-    logdat("perception grid", perception_grid.sizes());
     return perception_grid;
   }
 
   Tensor update(const Tensor &perception_vector) {
-    logdat("update", 0);
     auto x = fc1->forward(perception_vector);
     x = torch::relu(x);
     auto ds = fc2->forward(x);
@@ -132,9 +122,6 @@ struct NCA : torch::nn::Module {
 
   Tensor stochastic_update(const Tensor &state_grid, const Tensor &ds_grid) {
     const float update_threshold = 0.5;
-
-    // logdat("state_grid sizes: ", state_grid.sizes());
-    // logdat("ds_grid sizes: ", ds_grid.sizes());
     assert(state_grid.sizes() == ds_grid.sizes());
     auto rand_mask =
         torch::_cast_Float(rand_like(ds_grid).gt(update_threshold));
@@ -148,7 +135,7 @@ struct NCA : torch::nn::Module {
         state_grid.index({Slice(), 3, Slice(), Slice()}); // 3 = alpha channel
     auto alive = torch::max_pool2d(alpha, {3, 3}, {1}, {1})
                      .gt(threshold); // stride=1, padding=1
-    alive = torch::reshape(alive, {1, 1, alpha.sizes()[1], alpha.sizes()[2]});
+    alive = torch::reshape(alive, {state_grid.sizes()[0], 1, alpha.sizes()[1], alpha.sizes()[2]});
     alive = repeat_n(alive, state_grid.sizes()[1],
                      1); // repeat alive mask all channels
     return state_grid * torch::_cast_Float(alive);
@@ -158,7 +145,6 @@ struct NCA : torch::nn::Module {
     // std::cout << "is cuda? " << state_grid.is_cuda() << std::endl;
     auto perception_grid = perceive(state_grid);
     auto ds = update(perception_grid);
-    // ds = torch::transpose(torch::transpose(ds, 2, 3), 1, 2);
     auto updated = stochastic_update(state_grid, ds);
     auto masked = alive_masking(updated);
     return masked;
@@ -214,13 +200,13 @@ void train(NCA &nca, const Tensor &target, const Tensor &init, const float &lr,
       std::cout << "iter: " << i << " | loss: " << std::setprecision(4)
                 << loss.item<float>() << "\n";
     }
-    if (i % 1000 == 0) {
+    if (i % 500 == 0) {
       std::cout << "========================================================="
                    "======================="
                 << std::endl;
       std::cout << "iter: " << i << std::endl;
       std::cout << "loss: " << loss.to(torch::kFloat) << std::endl;
-      std::cout << "state (visible): " << state.slice(1, 0, 4) << std::endl;
+      std::cout << "state (visible): " << state.slice(1, 0, 4).slice(0, 0, 1) << std::endl;
       std::cout << "state dtype: " << state.is_cuda() << std::endl;
       std::cout << "fc1 gradient norm: "
                 << torch::norm(nca.fc1->weight.grad()).to(torch::kFloat)
@@ -250,7 +236,7 @@ int main(int argc, char *argv[]) {
 
   std::cout << "getNumGPUs: " << torch::cuda::device_count() << std::endl;
 
-  const int batchsize = 7;
+  const int batchsize = 128;
   auto world_dim = WorldDim({16, 9, 9});
 
   // make target pattern
@@ -271,7 +257,7 @@ int main(int argc, char *argv[]) {
   logdat("init", init);
 
   const int hdim = 128;
-  const float lr = 1e-8;
+  const float lr = 1e-12;
   const int tmax = 70;
   auto outdir = make_outdir();
 
