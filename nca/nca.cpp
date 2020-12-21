@@ -74,16 +74,22 @@ struct NCA : torch::nn::Module {
   NCA(int fc1_input_dim, int hdim, int channels, int batchsize)
       : fc1(torch::nn::Conv2d(fc1_input_dim, hdim, /*kernel size*/ 1)),
         fc2(torch::nn::Conv2d(hdim, channels, /*kernel size */ 1)) {
-    register_module("fc1", fc1);
-    register_module("fc2", fc2);
 
     fc1->weight =
         torch::zeros({hdim, fc1_input_dim, 1, 1}, options.requires_grad(true));
     fc1->bias = torch::zeros({hdim}, options.requires_grad(true));
     fc1->weight = torch::nn::init::kaiming_uniform_(fc1->weight);
     fc2->weight =
-        torch::full({channels, hdim, 1, 1}, 1e-4, options.requires_grad(true));
-    fc2->bias = torch::full({channels}, 1e-4, options.requires_grad(true));
+        torch::full({channels, hdim, 1, 1}, 1e-5, options.requires_grad(true));
+    fc2->bias = torch::full({channels}, 1e-5, options.requires_grad(true));
+
+    register_parameter("fc1_weight", fc1->weight);
+    register_parameter("fc1_b", fc1->bias);
+    register_parameter("fc2_weight", fc2->weight);
+    register_parameter("fc2_b", fc2->bias);
+
+    register_module("fc1", fc1); // must come after reassignment?
+    register_module("fc2", fc2);
 
     float sx[1][1][3][3] = {{{{-1., 0., 1.}, {-2., 0., 2.}, {-1., 0., 1.}}}};
     const auto sobel_x0 = torch::from_blob(sx, {1, 1, 3, 3}) /
@@ -96,11 +102,6 @@ struct NCA : torch::nn::Module {
     sobel_y = repeat_n(sobel_y, channels, 0);
     sobel_x = repeat_n(sobel_x, channels, 1);
     sobel_y = repeat_n(sobel_y, channels, 1);
-
-    logdat("fc1w ", fc1->weight.sizes());
-    logdat("fc2w ", fc2->weight.sizes());
-    logdat("fc1b ", fc1->bias.sizes());
-    logdat("fc2b ", fc2->bias.sizes());
   }
 
   Tensor perceive(const Tensor &state_grid) {
@@ -149,6 +150,7 @@ struct NCA : torch::nn::Module {
     auto masked = alive_masking(updated);
     return masked;
   }
+
   Tensor sobel_x;
   Tensor sobel_y;
   torch::nn::Conv2d fc1;
@@ -178,26 +180,40 @@ void train(NCA &nca, const Tensor &target, const Tensor &init, const float &lr,
 
   assert(target.sizes()[1] >= 4);
   assert(init.sizes()[1] >= 4);
-  torch::optim::Adam optimizer(nca.parameters(), torch::optim::AdamOptions(lr));
-  //  torch::optim::SGD optimizer(nca.parameters(),
-  //                              torch::optim::SGDOptions(lr).momentum(0.5));
+  // torch::optim::Adam optimizer(nca.parameters(), torch::optim::AdamOptions(lr));
+  // torch::optim::SGD optimizer(nca.parameters(), torch::optim::SGDOptions(lr).momentum(0.5));
+  // logdat("lr check ", lr);
+  // logdat("object check ", nca.parameters());
+  torch::optim::SGD optimizer(nca.parameters(), torch::optim::SGDOptions(lr).momentum(0.0));
+  // logdat("optim ", optimizer);
+    
 
   auto target_img = target.index({0, Slice(), Slice(), Slice()});
   write_ppm(target_img, outdir + "/target.ppm");
 
+  nca.train();
+
   for (int i = 0; i < n_iter; ++i) {
+    optimizer.zero_grad();
     Tensor state = init;
     state = state.to(options);
-    optimizer.zero_grad();
     for (int t = 0; t < tmax; ++t) {
       state = nca.forward(state);
     }
-    auto loss = mse_loss(target.slice(1, 0, 4), state.slice(1, 0, 4));
+    // auto loss = mse_loss(target.slice(1, 0, 4), state.slice(1, 0, 4));
+    auto loss = mse_loss(state.slice(1, 0, 4), target.slice(1, 0, 4));
+    // logdat("prior ", torch::norm(nca.fc2->weight));
+    auto prior = nca.fc2->weight;
     loss.backward();
     optimizer.step();
+    // logdat("after ", torch::norm(nca.fc2->weight));
+//    std::cout << "fc2 gradient norm: "
+//                << torch::norm(nca.fc2->weight.grad()).to(torch::kFloat)
+//                << std::endl;
+//    logdat("diff", torch::norm(nca.fc2->weight - prior));
     // auto g = torch::autograd::grad({loss}, {nca.fc1, nca.fc2});
-    if (i % 50 == 0) {
-      std::cout << "iter: " << i << " | loss: " << std::setprecision(4)
+    if (i % 10 == 0) {
+      std::cout << "iter: " << i << " | loss: " << std::setprecision(5)
                 << loss.item<float>() << "\n";
     }
     if (i % 500 == 0) {
@@ -236,8 +252,12 @@ int main(int argc, char *argv[]) {
 
   std::cout << "getNumGPUs: " << torch::cuda::device_count() << std::endl;
 
-  const int batchsize = 128;
+  const int batchsize = 1;
   auto world_dim = WorldDim({16, 9, 9});
+  const int hdim = 128;
+  const float lr = 1.0e-4;
+  const int tmax = 70;
+  auto outdir = make_outdir();
 
   // make target pattern
   auto target = init_world(batchsize, world_dim);
@@ -251,15 +271,9 @@ int main(int argc, char *argv[]) {
   target.index_put_({0, 3, 4, Slice()}, 1.0);
   logdat("target", target);
 
-  // make initial condition
   auto init = init_world(batchsize, world_dim);
   init.index_put_({0, Slice(), 4, 4}, 1.0); // alpha
   logdat("init", init);
-
-  const int hdim = 128;
-  const float lr = 1e-12;
-  const int tmax = 70;
-  auto outdir = make_outdir();
 
   const int fc1_input_dim =
       (world_dim.channels +
