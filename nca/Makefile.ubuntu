@@ -39,7 +39,7 @@ rebuild1:
 	cd build; ./nca 2> /dev/null
 
 rebuild2:
-	time clang++ -O2 -std=c++20 nca.cpp \
+	time clang++ -g -std=c++20 nca.cpp \
 		-fcolor-diagnostics \
 		-I $(PWD)/libtorch/include/torch/csrc/api/include/ \
 		-I $(PWD)/libtorch/include \
@@ -96,4 +96,14 @@ view:
 
 # run from an images_* directory
 movie:
-	ffmpeg -framerate 60 -pattern_type glob -i "state_*.ppm" -crf 0 -vf scale=400:400 -sws_flags neighbor output.mp4
+	ffmpeg -framerate 120 -pattern_type glob -i "state_*.ppm" -crf 0 -vf scale=400:400 -sws_flags neighbor output.mp4
+
+readppm:
+	time clang++ -g -std=c++20 readppm.cpp \
+		-fcolor-diagnostics \
+		-I $(PWD)/libtorch/include/torch/csrc/api/include/ \
+		-I $(PWD)/libtorch/include \
+		-L $(PWD)/libtorch/lib \
+		-ltorch_cuda -ltorch_cpu -lc10 \
+		-o readppm
+	export LD_LIBRARY_PATH=$(PWD)/libtorch/lib; ./readppm

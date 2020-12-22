@@ -4,14 +4,20 @@
 #include <iostream>
 #include <torch/torch.h>
 
+#include "ppm.hpp"
+
 using namespace torch::indexing;
 using torch::Tensor;
 
+const auto cuda_options = torch::TensorOptions().device(torch::kCUDA, 1);
+const auto cpu_options = torch::TensorOptions().device(torch::kCPU);
+
+
 #define USE_GPU
 #ifdef USE_GPU
-const auto options = torch::TensorOptions().device(torch::kCUDA, 0);
+const auto options = cuda_options;
 #else
-const auto options = torch::TensorOptions();
+const auto options = cpu_options;
 #endif
 
 const bool SAVE_OUTPUT = true;
@@ -24,43 +30,6 @@ struct WorldDim {
 
 void logdat(std::string text, auto value) {
   std::cout << text << std::endl << value << std::endl;
-}
-
-void write_ppm(const Tensor img, const std::string &filename) {
-
-  if (SAVE_OUTPUT) {
-
-    std::ofstream ofile(filename);
-    if (ofile.is_open()) {
-
-      assert(img.sizes()[0] >= 4);
-      const int img_width = img.sizes()[2];
-      const int img_height = img.sizes()[1];
-
-      ofile << "P3\n" << img_width << ' ' << img_height << "\n255\n";
-
-      for (int i = 0; i < img_height; ++i) {
-        for (int j = 0; j < img_width; ++j) {
-          // auto alpha = 1.0; // img[3][i][j];
-          auto alpha = img[3][i][j];
-          float r = torch::min(torch::full(1, 1.0, options),
-                               (torch::relu(img[0][i][j] * alpha)))
-                        .item<float>();
-          float g = torch::min(torch::full(1, 1.0, options),
-                               (torch::relu(img[1][i][j] * alpha)))
-                        .item<float>();
-          float b = torch::min(torch::full(1, 1.0, options),
-                               (torch::relu(img[2][i][j] * alpha)))
-                        .item<float>();
-          int ir = static_cast<int>(255.999 * r);
-          int ig = static_cast<int>(255.999 * g);
-          int ib = static_cast<int>(255.999 * b);
-
-          ofile << ir << ' ' << ig << ' ' << ib << '\n';
-        }
-      }
-    }
-  }
 }
 
 Tensor repeat_n(const Tensor t, const int n, const int dim) {
@@ -181,14 +150,17 @@ std::string make_outdir() {
 
 void train(NCA &nca, const Tensor &target, const Tensor &init, const float &lr,
            const int tmax, const std::string outdir) {
-  const int n_iter = 2000;
+  const int n_iter = 500;
 
   assert(target.sizes()[1] >= 4);
   assert(init.sizes()[1] >= 4);
   torch::optim::Adam optimizer(nca.parameters(), torch::optim::AdamOptions(lr));
 
   auto target_img = target.index({0, Slice(), Slice(), Slice()});
-  write_ppm(target_img, outdir + "/target.ppm");
+
+  if (SAVE_OUTPUT) {
+    write_ppm(target_img, outdir + "/target.ppm");
+  }
 
   nca.train();
 
@@ -227,6 +199,7 @@ void train(NCA &nca, const Tensor &target, const Tensor &init, const float &lr,
                 << std::endl;
     }
 
+  if (SAVE_OUTPUT) {
     if ((i > 0 && i % 10 == 0 && i < 100) || (i >= 80 && i % 50 == 0)) {
       std::cout << "Writing images\n";
       Tensor img = init;
@@ -242,6 +215,7 @@ void train(NCA &nca, const Tensor &target, const Tensor &init, const float &lr,
       }
       std::cout << "Wrote images\n";
     }
+  }
 
   }
 }
@@ -250,35 +224,33 @@ int main(int argc, char *argv[]) {
 
   std::cout << "getNumGPUs: " << torch::cuda::device_count() << std::endl;
 
-  const int batchsize = 256;
-  auto world_dim = WorldDim({16, 9, 9});
+  const int batchsize = 128;
+  auto world_dim = WorldDim({16, 31, 31});
   const int hdim = 128;
   const float lr = 1.0e-5;
-  const int tmax = 120;
+  const int tmax = 100;
   auto outdir = make_outdir();
 
   // make target pattern
   auto target = init_world(batchsize, world_dim);
-  target.index_put_({0, 0, Slice(), 4}, 1.0); // 0 channel = red
-  target.index_put_({0, 0, 4, Slice()}, 1.0);
-  target.index_put_({0, 1, Slice(), 4}, 1.0); // 1 channel = green
-  target.index_put_({0, 1, 4, Slice()}, 1.0);
-  target.index_put_({0, 2, Slice(), 4}, 1.0); // 2 channel = blue
-  target.index_put_({0, 2, 4, Slice()}, 1.0);
-  target.index_put_({0, 3, Slice(), 4}, 1.0); // 3 channel = alpha
-  target.index_put_({0, 3, 4, Slice()}, 1.0);
-  logdat("target", target);
+  target.index_put_({0, 0, Slice(), 15}, 1.0); // 0 channel = red
+  target.index_put_({0, 0, 15, Slice()}, 1.0);
+  target.index_put_({0, 1, Slice(), 15}, 1.0); // 1 channel = green
+  target.index_put_({0, 1, 15, Slice()}, 1.0);
+  target.index_put_({0, 2, Slice(), 15}, 1.0); // 2 channel = blue
+  target.index_put_({0, 2, 15, Slice()}, 1.0);
+  target.index_put_({0, 3, Slice(), 15}, 1.0); // 3 channel = alpha
+  target.index_put_({0, 3, 15, Slice()}, 1.0);
 
   auto init = init_world(batchsize, world_dim);
-  init.index_put_({0, Slice(), 4, 4}, 1.0); // alpha
-  logdat("init", init);
+  init.index_put_({0, Slice(), 15, 15}, 1.0); // alpha
 
   const int fc1_input_dim =
       (world_dim.channels +
        2 * world_dim.channels); // add 2 * 4 for horizontal and vertical sobel
                                 // filters
   auto nca = NCA(fc1_input_dim, hdim, world_dim.channels, batchsize);
-  torch::Device device(torch::kCUDA);
+  torch::Device device(torch::kCUDA, 1);
   nca.to(device);
 
   std::cout << "hdim: " << hdim << std::endl;
